@@ -1,0 +1,600 @@
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Tareas y Ahorro Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root { --primary: #6366f1; --secondary: #ec4899; }
+        body { background-color: #f1f5f9; font-family: 'Segoe UI', sans-serif; touch-action: manipulation; transition: background-color 0.5s ease; }
+        .task-card { transition: all 0.2s ease; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
+        .theme-transition { transition: all 0.5s ease; }
+        .day-dot { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 10px; font-weight: 900; cursor: pointer; transition: all 0.2s; border: 2px solid transparent; user-select: none; position: relative; }
+        .avatar-container { width: 64px; height: 64px; border-radius: 1.25rem; overflow: hidden; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.2); box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.1); }
+        .avatar-img { width: 100%; height: 100%; object-fit: cover; }
+        .not-my-turn { opacity: 0.15; background: #f1f5f9 !important; color: #94a3b8 !important; pointer-events: none; border: 1px dashed #cbd5e1; position: relative; }
+        .not-my-turn::after { content: ""; position: absolute; width: 80%; height: 2px; background: #94a3b8; transform: rotate(-45deg); }
+    </style>
+</head>
+<body class="p-4 pb-12 theme-transition">
+
+    <div class="max-w-md mx-auto bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-white relative">
+        <!-- Status Bar -->
+        <div id="cloud-status" class="absolute top-4 right-6 text-[9px] font-black px-3 py-1 bg-black/10 rounded-full z-10 flex items-center backdrop-blur-sm">
+            <i class="fas fa-circle-notch fa-spin mr-1"></i> Conectando...
+        </div>
+
+        <!-- Perfil Header -->
+        <div id="main-header" class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 p-8 text-white relative theme-transition">
+            <button onclick="window.openRulesModal()" class="absolute top-20 right-6 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-xs hover:bg-white/30 transition-all border border-white/10 shadow-lg">
+                <i class="fas fa-question text-white"></i>
+            </button>
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-4">
+                    <div id="user-avatar-display" class="avatar-container text-3xl"></div>
+                    <div>
+                        <h1 id="display-name" class="text-2xl font-black leading-none text-white uppercase tracking-tight">Majo</h1>
+                        <p id="user-level" class="text-white/70 text-[10px] font-black uppercase tracking-widest mt-1">Nivel: Principiante</p>
+                        <div id="level-progress-hint" class="text-[7px] font-black text-white/40 uppercase mt-0.5"></div>
+                    </div>
+                </div>
+                <div class="text-right mr-10">
+                    <div class="flex items-center justify-end text-orange-400 drop-shadow-md">
+                        <i class="fas fa-fire-alt text-xl"></i>
+                        <span id="display-streak" class="text-2xl font-black ml-1 text-white">0</span>
+                    </div>
+                    <p class="text-[9px] font-black uppercase text-white/50 tracking-tighter">Racha</p>
+                </div>
+            </div>
+            <div class="flex gap-2 p-1 bg-black/20 rounded-2xl">
+                <button onclick="switchUser('Majo')" id="tab-Majo" class="flex-1 py-2 rounded-xl font-bold text-sm transition-all bg-white text-indigo-700 shadow-lg">Majo</button>
+                <button onclick="switchUser('Ivanna')" id="tab-Ivanna" class="flex-1 py-2 rounded-xl font-bold text-sm transition-all text-white hover:bg-white/10">Ivanna</button>
+            </div>
+        </div>
+
+        <!-- Dashboard Body -->
+        <div class="p-6 -mt-4 bg-white rounded-t-[2rem] relative z-20">
+            <!-- Meta Section -->
+            <div class="mb-8">
+                <div class="flex justify-between items-end mb-2">
+                    <h3 class="font-black text-gray-800 flex items-center text-sm tracking-tight text-slate-700 uppercase">
+                        <i class="fas fa-bullseye mr-2 theme-text-color"></i> Mi Meta (Gastos)
+                    </h3>
+                    <button onclick="window.openGoalModal()" class="text-[10px] font-black theme-text-color theme-bg-light px-2 py-1 rounded-lg hover:opacity-80 transition-all">
+                        <i class="fas fa-cog mr-1 text-[8px]"></i> AJUSTES
+                    </button>
+                </div>
+                <div class="bg-slate-50 border border-slate-100 p-4 rounded-3xl">
+                    <div class="flex justify-between items-center mb-2">
+                        <span id="goal-name" class="font-bold text-slate-700 uppercase text-[10px] truncate max-w-[70%] tracking-tight">Cargando...</span>
+                        <span class="text-xs font-black theme-text-color"><span id="goal-percent">0</span>%</span>
+                    </div>
+                    <div class="w-full h-4 bg-slate-200 rounded-full overflow-hidden p-1 shadow-inner">
+                        <div id="goal-bar" class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000 shadow-sm" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between mt-2 text-[9px] font-bold text-slate-400 uppercase">
+                        <span>Llevo: $<span id="current-saving">0</span></span>
+                        <span>Faltan: $<span id="goal-remain">0</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Totales -->
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div id="card-weekly" class="p-5 rounded-[2rem] text-white shadow-xl relative overflow-hidden theme-transition">
+                    <i class="fas fa-wallet absolute -right-2 -bottom-2 text-6xl text-white/10 rotate-12"></i>
+                    <p class="text-[10px] font-bold opacity-80 uppercase tracking-widest">Semana Actual</p>
+                    <h2 id="weekly-total" class="text-3xl font-black">$0.00</h2>
+                </div>
+                <div class="bg-slate-800 p-5 rounded-[2rem] text-white shadow-xl relative overflow-hidden">
+                    <i class="fas fa-piggy-bank absolute -right-2 -bottom-2 text-6xl text-white/10 -rotate-12"></i>
+                    <p class="text-[10px] font-bold opacity-80 uppercase tracking-widest font-black text-white/80">Tesoro Actual</p>
+                    <h2 id="historical-total" class="text-2xl font-black">$0.00</h2>
+                </div>
+            </div>
+
+            <!-- Desglose -->
+            <div class="grid grid-cols-3 gap-2 mb-8">
+                <div class="bg-white p-3 rounded-2xl shadow-sm text-center border border-indigo-50">
+                    <p class="text-[8px] text-gray-400 uppercase font-black tracking-tighter mb-1">🛒 Gasto</p>
+                    <p id="dist-gasto" class="font-bold text-[10px] text-slate-700">$0.00</p>
+                </div>
+                <div class="bg-white p-3 rounded-2xl shadow-sm text-center border border-indigo-50">
+                    <p class="text-[8px] text-gray-400 uppercase font-black tracking-tighter mb-1">🏦 Ahorro</p>
+                    <p id="dist-ahorro" class="font-bold text-[10px] text-slate-700">$0.00</p>
+                </div>
+                <div class="bg-white p-3 rounded-2xl shadow-sm text-center border border-indigo-50">
+                    <p class="text-[8px] text-gray-400 uppercase font-black tracking-tighter mb-1">❤️ Causa</p>
+                    <p id="dist-causa" class="font-bold text-[10px] text-slate-700">$0.00</p>
+                </div>
+            </div>
+
+            <!-- Tareas -->
+            <div class="mb-6">
+                <h3 class="font-black text-gray-800 mb-4 flex items-center text-sm uppercase tracking-widest">
+                    <i class="fas fa-tasks mr-2 theme-text-color"></i> Seguimiento Diario
+                </h3>
+                <div id="tasks-container" class="space-y-4"></div>
+            </div>
+
+            <!-- Footer Buttons -->
+            <div class="space-y-3">
+                <button onclick="window.confirmReset()" class="w-full py-4 text-white rounded-2xl font-black shadow-lg transition-all flex items-center justify-center theme-transition" id="btn-finish-trigger">
+                    <i class="fas fa-check-circle mr-2"></i> TERMINAR SEMANA
+                </button>
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="window.showHistory()" class="py-3 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl font-bold text-xs flex items-center justify-center shadow-sm">
+                        <i class="fas fa-history mr-2"></i> HISTORIAL
+                    </button>
+                    <button onclick="window.openBonusModal()" class="py-3 bg-emerald-50 text-emerald-600 rounded-2xl font-bold text-xs flex items-center justify-center border-2 border-emerald-100 shadow-sm">
+                        <i class="fas fa-plus-circle mr-2"></i> MODO PAPÁ
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modales -->
+    <div id="modal-container" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-[100] backdrop-blur-sm">
+        
+        <!-- Modal Reglas (Restaurado detallado) -->
+        <div id="modal-rules" class="hidden bg-white rounded-[2.5rem] p-6 max-w-md w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-black text-indigo-900">Manual del Éxito 🚀</h3>
+                <button onclick="window.closeModals()" class="text-slate-300"><i class="fas fa-times-circle text-2xl"></i></button>
+            </div>
+            <div class="overflow-y-auto space-y-5 text-sm custom-scrollbar pr-2 pb-4">
+                <div class="bg-indigo-50 p-4 rounded-3xl border border-indigo-100 theme-bg-light">
+                    <h4 class="font-black theme-text-color text-xs mb-2 uppercase tracking-widest text-center">💰 ¿CÓMO SE DIVIDE TU DINERO?</h4>
+                    <ul class="space-y-2 text-slate-700 font-medium">
+                        <li class="flex items-start gap-2"><span>🛍️</span> <span><strong>50% Gasto:</strong> Para tus gustos o tu meta.</span></li>
+                        <li class="flex items-start gap-2"><span>🏦</span> <span><strong>40% Ahorro:</strong> Inversión en CETES (¡Crece solo!).</span></li>
+                        <li class="flex items-start gap-2"><span>🤝</span> <span><strong>10% Causa:</strong> Para ayudar a otros.</span></li>
+                        <li class="flex items-start gap-2"><span>🎁</span> <span class="text-emerald-600 font-bold">Bono Papá: Es 100% para tus gastos.</span></li>
+                    </ul>
+                </div>
+                
+                <div class="bg-orange-50 p-4 rounded-3xl border border-orange-100">
+                    <h4 class="font-black text-orange-700 text-xs mb-2 uppercase tracking-widest text-center">🔥 REGLA DEL FUEGO</h4>
+                    <p class="text-orange-900/80 font-medium">Para que una tarea cuente como lista, debes completar <strong>TODOS</strong> sus días correspondientes.</p>
+                    <p class="text-orange-700 font-black mt-2 bg-white/50 p-2 rounded-xl text-center italic border border-orange-200 text-[11px]">
+                        ⚠️ ¡Atención! Si fallas un solo día, tu racha vuelve a cero.
+                    </p>
+                </div>
+
+                <div class="bg-purple-50 p-4 rounded-3xl border border-purple-100">
+                    <h4 class="font-black text-purple-700 text-xs mb-3 uppercase tracking-widest text-center italic">🏆 NIVELES DE GLORIA</h4>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100">
+                            <span class="font-black text-slate-400">🥚 Principiante</span>
+                            <span class="text-[10px] font-bold text-slate-400">0 SEMANAS</span>
+                        </div>
+                        <div class="flex justify-between items-center bg-white p-3 rounded-xl border border-purple-200">
+                            <span class="font-black text-purple-600">🏅 Responsable</span>
+                            <span class="text-[10px] font-bold text-purple-400">1-2 SEMANAS</span>
+                        </div>
+                        <div class="flex justify-between items-center bg-white p-3 rounded-xl border border-purple-300">
+                            <span class="font-black text-purple-700">⭐ Súper Estrella</span>
+                            <span class="text-[10px] font-bold text-purple-500">3-4 SEMANAS</span>
+                        </div>
+                        <div class="flex justify-between items-center bg-purple-600 text-white p-3 rounded-xl shadow-lg animate-pulse">
+                            <span class="font-black">🐐 GOAT</span>
+                            <span class="text-[10px] font-bold opacity-80">5+ SEMANAS</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button onclick="window.closeModals()" class="w-full mt-2 py-4 bg-indigo-600 text-white rounded-2xl font-black theme-transition shadow-lg">¡ENTENDIDO!</button>
+        </div>
+
+        <!-- Modal Confirmación de Cierre -->
+        <div id="modal-confirm-week" class="hidden bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl">
+            <h3 class="text-xl font-black text-slate-800 mb-2">¡Semana Terminada!</h3>
+            <p id="finish-resumen-text" class="text-sm text-slate-500 mb-6 font-medium leading-relaxed"></p>
+            <div class="bg-slate-50 rounded-2xl p-4 mb-6 text-left space-y-2 border border-slate-100">
+                <p class="text-xs font-black text-pink-500 uppercase flex justify-between"><span>🛒 Para Gastos:</span> <span id="finish-gasto">$0.00</span></p>
+                <p class="text-xs font-black text-blue-500 uppercase flex justify-between"><span>🏦 Para Cetes:</span> <span id="finish-ahorro">$0.00</span></p>
+                <p class="text-xs font-black text-emerald-500 uppercase flex justify-between"><span>❤️ Para Causa:</span> <span id="finish-causa">$0.00</span></p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="window.closeModals()" class="flex-1 py-4 bg-slate-100 rounded-2xl font-bold text-slate-400">Aún no</button>
+                <button onclick="window.finishWeekConfirmed()" class="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg theme-transition" id="btn-confirm-final">¡Cerrar!</button>
+            </div>
+        </div>
+
+        <!-- Historial Modal -->
+        <div id="modal-history" class="hidden bg-white rounded-[2.5rem] p-6 max-w-md w-full max-h-[85vh] flex flex-col shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-black text-slate-800 tracking-tight">Mi Tesoro 💰</h3>
+                <button onclick="window.closeModals()" class="text-slate-300"><i class="fas fa-times-circle text-2xl"></i></button>
+            </div>
+            <div id="hist-content" class="overflow-y-auto flex-1 pr-2 custom-scrollbar space-y-6">
+                <div class="bg-indigo-50 p-6 rounded-[2rem] text-center theme-bg-light border border-black/5">
+                    <div class="mb-4 text-left">
+                        <p class="text-[10px] text-slate-400 font-black uppercase mb-1">Tesoro Actual (Saldo)</p>
+                        <p id="hist-total-amount" class="text-4xl font-black theme-text-color">$0.00</p>
+                    </div>
+                    <div class="bg-white/50 p-2 rounded-xl mb-4 border border-black/5 text-left">
+                        <p class="text-[9px] text-slate-500 font-black uppercase">Total Ganado Histórico</p>
+                        <p id="hist-grand-total" class="text-xl font-black text-slate-800">$0.00</p>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-black/5">
+                        <div><p class="text-[8px] text-pink-500 font-black uppercase">🛒 Gasto</p><p id="hist-total-gasto" class="text-xs font-black text-slate-700">$0.00</p></div>
+                        <div><p class="text-[8px] text-blue-500 font-black uppercase">🏦 Cetes</p><p id="hist-total-ahorro" class="text-xs font-black text-slate-700">$0.00</p></div>
+                        <div><p class="text-[8px] text-green-500 font-black uppercase">❤️ Causa</p><p id="hist-total-causa" class="text-xs font-black text-slate-700">$0.00</p></div>
+                    </div>
+                    <button onclick="window.showModal('modal-withdraw')" class="mt-4 px-6 py-2 bg-red-500 text-white text-[10px] font-black rounded-full uppercase shadow-lg shadow-red-100 hover:scale-105 transition-all"><i class="fas fa-minus-circle mr-1"></i> Registrar Gasto / Retiro</button>
+                </div>
+                <div class="bg-white p-4 rounded-3xl border border-slate-100 shadow-inner">
+                    <div class="h-48"><canvas id="moneyChart"></canvas></div>
+                </div>
+                <div id="history-list" class="space-y-4 pb-4"></div>
+            </div>
+        </div>
+
+        <!-- Modal Retiro -->
+        <div id="modal-withdraw" class="hidden bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl">
+            <div class="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl"><i class="fas fa-shopping-cart"></i></div>
+            <h3 class="text-xl font-black text-slate-800 mb-1">Registrar Gasto</h3>
+            <p class="text-xs text-slate-400 mb-6 font-bold uppercase tracking-widest">¿Cuánto dinero sacaste?</p>
+            <div class="space-y-4">
+                <input type="number" id="input-withdraw-amount" placeholder="Monto ($)" class="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-center text-2xl font-black text-red-500 outline-none">
+                <select id="input-withdraw-type" class="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none text-slate-600">
+                    <option value="gasto">Del sobre de GASTOS 🛒</option>
+                    <option value="ahorro">Del sobre de AHORRO (CETES) 🏦</option>
+                    <option value="causa">Del sobre de CAUSA ❤️</option>
+                </select>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="window.showHistory()" class="flex-1 py-4 bg-slate-100 rounded-2xl font-bold">Cancelar</button>
+                <button onclick="window.applyWithdraw()" class="flex-1 py-4 bg-red-500 text-white rounded-2xl font-black shadow-lg shadow-red-100">Registrar</button>
+            </div>
+        </div>
+
+        <!-- Modal Confirmación Borrado -->
+        <div id="modal-confirm-delete" class="hidden bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl">
+            <div class="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl"><i class="fas fa-trash-alt"></i></div>
+            <h3 class="text-xl font-black text-slate-800 mb-1 tracking-tighter">¿Borrar registro?</h3>
+            <div class="flex gap-3 mt-6"><button onclick="window.showModal('modal-edit-entry')" class="flex-1 py-4 bg-slate-100 rounded-2xl font-bold">No</button><button onclick="window.finishDeleteHistoryConfirmed()" class="flex-1 py-4 bg-red-500 text-white rounded-2xl font-bold shadow-lg shadow-red-100">Sí, Borrar</button></div>
+        </div>
+
+        <!-- Modal Editar -->
+        <div id="modal-edit-entry" class="hidden bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl">
+            <h3 class="text-xl font-black text-slate-800 mb-6 uppercase tracking-widest">Corregir Dinero</h3>
+            <input type="number" id="input-edit-cash" class="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl mb-6 font-black text-xl theme-text-color outline-none">
+            <div class="flex flex-col gap-2">
+                <button onclick="window.saveEditEntry()" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg" id="btn-save-edit">Guardar Cambios</button>
+                <button onclick="window.openDeleteConfirmModal()" class="mt-4 text-[10px] font-black text-red-400 uppercase p-2 hover:bg-red-50 rounded-xl transition-all tracking-widest">Eliminar registro</button>
+            </div>
+        </div>
+
+        <!-- Modal Configuración -->
+        <div id="modal-goal" class="hidden bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl">
+            <h3 class="text-xl font-black text-slate-800 mb-6 tracking-tighter">Perfil y Meta</h3>
+            <div class="space-y-4 mb-6 text-left max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                <div><label class="text-[10px] font-black text-slate-400 uppercase ml-2">Avatar (Emoji o Link)</label><input type="text" id="input-user-avatar" class="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-2xl"></div>
+                <div><label class="text-[10px] font-black text-slate-400 uppercase ml-2 italic">🔄 Inicia Semana (Lunes)</label><select id="input-week-start" class="w-full p-3 bg-indigo-50 rounded-2xl font-bold text-indigo-700"><option value="Ivanna">Ivanna</option><option value="Majo">Majo</option></select></div>
+                <div><label class="text-[10px] font-black text-slate-400 uppercase ml-2">Meta</label><input type="text" id="input-goal-name" class="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold"></div>
+                <div><label class="text-[10px] font-black text-slate-400 uppercase ml-2">Precio ($)</label><input type="number" id="input-goal-target" class="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold"></div>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2">Color del Tema</label>
+                    <div class="flex justify-around p-2 bg-slate-50 rounded-2xl border-2 border-slate-100">
+                        <button onclick="setTempTheme('indigo')" class="w-8 h-8 rounded-full bg-indigo-600 border-2 border-white shadow-sm hover:scale-110 transition-all"></button>
+                        <button onclick="setTempTheme('pink')" class="w-8 h-8 rounded-full bg-pink-500 border-2 border-white shadow-sm hover:scale-110 transition-all"></button>
+                        <button onclick="setTempTheme('purple')" class="w-8 h-8 rounded-full bg-purple-600 border-2 border-white shadow-sm hover:scale-110 transition-all"></button>
+                        <button onclick="setTempTheme('emerald')" class="w-8 h-8 rounded-full bg-emerald-500 border-2 border-white shadow-sm hover:scale-110 transition-all"></button>
+                        <button onclick="setTempTheme('orange')" class="w-8 h-8 rounded-full bg-orange-500 border-2 border-white shadow-sm hover:scale-110 transition-all"></button>
+                    </div>
+                </div>
+            </div>
+            <button onclick="window.saveGoal()" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black mt-4 shadow-lg">Guardar Ajustes</button>
+        </div>
+
+        <div id="modal-bonus" class="hidden bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl border-4 border-emerald-100">
+            <h3 class="text-xl font-black text-emerald-900 mb-6 tracking-tighter uppercase italic">Bono Papá 🎁</h3>
+            <input type="number" id="input-bonus" class="w-full p-4 bg-emerald-50 border-2 border-emerald-100 rounded-2xl mb-6 text-center text-2xl font-black text-emerald-700 outline-none">
+            <div class="flex gap-3"><button onclick="window.closeModals()" class="flex-1 py-4 bg-slate-100 rounded-2xl font-bold text-slate-500 text-sm">Cerrar</button><button onclick="window.applyBonus()" class="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black theme-transition shadow-lg">Dar Bono</button></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyC4AdGqHeKHbNe2gFVGH8LKqQ9ulklt3nI",
+            authDomain: "tareasfamilia2026-76896.firebaseapp.com",
+            projectId: "tareasfamilia2026-76896",
+            storageBucket: "tareasfamilia2026-76896.firebasestorage.app",
+            messagingSenderId: "118884142994",
+            appId: "1:118884142994:web:fc88f9dfe3efb885893b4b"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = 'familia-diaz-2026';
+
+        const PAGA_BASE = 200;
+        const PENALIDAD = 0.20;
+        let currentUser = 'Majo';
+        let editingIdx = -1;
+        let tempTheme = 'indigo';
+        
+        let state = {
+            Majo: { tasks: {}, history: [], streak: 0, goal: { name: 'Meta', target: 500 }, avatar: '👱‍♀️', theme: 'indigo' },
+            Ivanna: { tasks: {}, history: [], streak: 0, goal: { name: 'Meta', target: 500 }, avatar: '👧🏻', theme: 'pink' },
+            globalSettings: { weekStartUser: 'Ivanna' }
+        };
+        let chart = null;
+
+        const themes = {
+            indigo: { hex: '#6366f1', main: 'from-indigo-600 via-indigo-700 to-purple-800', btn: 'bg-indigo-600', text: 'text-indigo-600', light: 'bg-indigo-50' },
+            pink: { hex: '#ec4899', main: 'from-pink-500 via-pink-600 to-rose-700', btn: 'bg-pink-500', text: 'text-pink-500', light: 'bg-pink-50' },
+            purple: { hex: '#9333ea', main: 'from-purple-600 via-purple-700 to-indigo-800', btn: 'bg-purple-600', text: 'text-purple-600', light: 'bg-purple-50' },
+            emerald: { hex: '#10b981', main: 'from-emerald-500 via-emerald-600 to-teal-700', btn: 'bg-emerald-500', text: 'text-emerald-500', light: 'bg-emerald-50' },
+            orange: { hex: '#f59e0b', main: 'from-orange-500 via-orange-600 to-amber-700', btn: 'bg-orange-500', text: 'text-orange-500', light: 'bg-orange-50' }
+        };
+
+        const tasksDef = [
+            { id: 't1', label: 'Camas perfectas', cat: 'FIN DE SEMANA', icon: '🛏️', days: ['Sa', 'Do'] },
+            { id: 't2', label: 'Cuarto ordenado', cat: 'FIN DE SEMANA', icon: '🧹', days: ['Sa', 'Do'] },
+            { id: 't3', label: 'Ducha y dientes', cat: 'DIARIO', icon: '🚿', days: ['Lu','Ma','Mi','Ju','Vi','Sa','Do'] },
+            { id: 't4', label: 'Platos limpios', cat: 'DIARIO', icon: '🍽️', days: ['Lu','Ma','Mi','Ju','Vi','Sa','Do'] },
+            { id: 't5', label: 'Comida de perros', cat: 'DIARIO', icon: '🐕', days: ['Lu','Ma','Mi','Ju','Vi','Sa','Do'], isRotating: true },
+            { id: 't6', label: 'Desechos perros', cat: 'DIARIO', icon: '💩', days: ['Lu','Ma','Mi','Ju','Vi','Sa','Do'], isRotating: true },
+            { id: 't7', label: 'Estudio Catecismo', cat: 'L/M/V', icon: '📚', days: ['Lu', 'Mi', 'Vi'] },
+            { id: 't8', label: 'Cepillar perros', cat: 'SEMANAL', icon: '🪮', days: ['Sem'] }
+        ];
+
+        const getTurnForDayOfWeek = (dayLabel) => {
+            const startUser = (state.globalSettings && state.globalSettings.weekStartUser) ? state.globalSettings.weekStartUser : 'Ivanna';
+            const daysOffset = { 'Lu':0, 'Ma':1, 'Mi':2, 'Ju':3, 'Vi':4, 'Sa':5, 'Do':6 };
+            const isStartUserTurn = (daysOffset[dayLabel] % 2 === 0); 
+            return (startUser === 'Ivanna' ? (isStartUserTurn ? 'Ivanna' : 'Majo') : (isStartUserTurn ? 'Majo' : 'Ivanna'));
+        };
+
+        async function sync() { try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'familyState', 'mainDoc'), state); } catch(e) {} }
+        
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'familyState', 'mainDoc'), (snap) => {
+                    if (snap.exists()) { state = snap.data(); render(); } else { sync(); }
+                    const el = document.getElementById('cloud-status');
+                    if(el) el.innerHTML = '<i class="fas fa-check-circle text-green-500 mr-1"></i> Sincronizado';
+                });
+            } else { signInAnonymously(auth); }
+        });
+
+        window.switchUser = (u) => { currentUser = u; render(); };
+
+        window.toggleDay = (tid, dayLabel) => {
+            if (!state[currentUser].tasks[tid]) state[currentUser].tasks[tid] = {};
+            const task = tasksDef.find(x => x.id === tid);
+            if (task.isRotating && getTurnForDayOfWeek(dayLabel) !== currentUser) return;
+            state[currentUser].tasks[tid][dayLabel] = !state[currentUser].tasks[tid][dayLabel];
+            if (state[currentUser].tasks[tid][dayLabel]) confetti({ particleCount: 30, spread: 25, origin: { y: 0.85 }, colors: [themes[state[currentUser].theme || 'indigo'].hex] });
+            sync();
+        };
+
+        function isTaskComplete(tid, user) {
+            const tDef = tasksDef.find(x => x.id === tid);
+            const tState = (state[user].tasks || {})[tid] || {};
+            return tDef.days.every(d => (tDef.isRotating && getTurnForDayOfWeek(d) !== user) ? true : tState[d] === true);
+        }
+
+        function renderAvatar(val, targetId) {
+            const el = document.getElementById(targetId); if (!el) return;
+            el.innerHTML = '';
+            if (val && val.startsWith('http')) {
+                const img = document.createElement('img'); img.src = val; img.className = 'avatar-img';
+                img.onerror = () => { el.innerText = '👧'; }; el.appendChild(img);
+            } else { el.innerText = val || '👧'; }
+        }
+
+        function render() {
+            const user = state[currentUser]; if (!user) return;
+            const t = themes[user.theme || 'indigo'];
+            document.getElementById('main-header').className = `p-8 text-white relative theme-transition bg-gradient-to-br ${t.main}`;
+            document.getElementById('card-weekly').className = `p-5 rounded-[2rem] text-white shadow-xl relative overflow-hidden theme-transition ${t.btn}`;
+            document.getElementById('btn-finish-trigger').className = `w-full py-4 text-white rounded-2xl font-black shadow-lg transition-all flex items-center justify-center theme-transition ${t.btn}`;
+            document.querySelectorAll('.theme-text-color').forEach(el => el.style.color = t.hex);
+            document.querySelectorAll('.theme-bg-light').forEach(el => el.style.backgroundColor = t.hex + '15');
+            document.documentElement.style.setProperty('--primary', t.hex);
+            
+            document.getElementById('display-name').innerText = currentUser;
+            renderAvatar(user.avatar, 'user-avatar-display');
+            document.getElementById('display-streak').innerText = user.streak || 0;
+            
+            const s = user.streak || 0;
+            let level = s >= 5 ? 'GOAT 🐐' : (s >= 3 ? 'Súper Estrella ⭐' : (s >= 1 ? 'Responsable 🏅' : 'Principiante 🥚'));
+            document.getElementById('user-level').innerText = `Nivel: ${level}`;
+            const hintEl = document.getElementById('level-progress-hint');
+            if (hintEl) hintEl.innerText = s >= 5 ? '¡Máximo Nivel!' : `Faltan ${s >= 3 ? 5 - s : (s >= 1 ? 3 - s : 1 - s)} sem para subir`;
+
+            const doneCount = tasksDef.filter(t => isTaskComplete(t.id, currentUser)).length;
+            const missed = tasksDef.length - doneCount;
+            const cash = Math.max(0, PAGA_BASE - (missed * (PAGA_BASE * PENALIDAD)));
+            
+            document.getElementById('weekly-total').innerText = `$${cash.toFixed(2)}`;
+            
+            let gAcc = 0, aAcc = 0, cAcc = 0, grandTotalEarned = 0;
+            (user.history || []).forEach(w => { 
+                if(w.isBonus){ 
+                    gAcc+=w.cash; 
+                    grandTotalEarned += w.cash;
+                } else if(w.isWithdraw){
+                    if(w.wType === 'gasto') gAcc -= w.cash;
+                    else if(w.wType === 'ahorro') aAcc -= w.cash;
+                    else if(w.wType === 'causa') cAcc -= w.cash;
+                } else { 
+                    gAcc+=w.cash*0.5; aAcc+=w.cash*0.4; cAcc+=w.cash*0.1; 
+                    grandTotalEarned += w.cash;
+                } 
+            });
+
+            document.getElementById('historical-total').innerText = `$${(gAcc+aAcc+cAcc).toFixed(2)}`;
+            document.getElementById('dist-gasto').innerText = `$${gAcc.toFixed(2)}`;
+            document.getElementById('dist-ahorro').innerText = `$${aAcc.toFixed(2)}`;
+            document.getElementById('dist-causa').innerText = `$${cAcc.toFixed(2)}`;
+            
+            document.getElementById('current-saving').innerText = gAcc.toFixed(2);
+            const goal = user.goal || { target: 500 };
+            const percent = Math.min(100, Math.floor((gAcc / (goal.target || 1)) * 100));
+            document.getElementById('goal-name').innerText = goal.name || 'META';
+            document.getElementById('goal-percent').innerText = percent;
+            document.getElementById('goal-bar').style.width = `${percent}%`;
+            document.getElementById('goal-remain').innerText = Math.max(0, goal.target - gAcc).toFixed(2);
+
+            const cont = document.getElementById('tasks-container'); cont.innerHTML = '';
+            tasksDef.forEach(t => {
+                const isComplete = isTaskComplete(t.id, currentUser);
+                const taskState = user.tasks[t.id] || {};
+                const card = document.createElement('div'); card.className = `task-card p-4 rounded-[2rem] border-2 transition-all bg-white ${isComplete ? 'border-indigo-100 shadow-sm opacity-90' : 'border-slate-100'}`;
+                let dHtml = `<div class="flex flex-wrap gap-2 mt-3">`;
+                t.days.forEach(d => {
+                    const isMyT = !t.isRotating || getTurnForDayOfWeek(d) === currentUser;
+                    const active = taskState[d];
+                    let content = d, style = active ? t.btn + ' text-white shadow-md' : 'bg-slate-50 text-slate-400 border-slate-100';
+                    if (!isMyT) { content = ''; style = 'not-my-turn'; }
+                    dHtml += `<div onclick="window.toggleDay('${t.id}', '${d}')" class="day-dot ${style}">${content}</div>`;
+                });
+                card.innerHTML = `<div class="flex items-center gap-3"><div class="w-10 h-10 rounded-2xl flex items-center justify-center text-xl bg-slate-50">${t.icon}</div><div class="flex-1"><h4 class="font-black text-sm text-slate-800 uppercase tracking-tight">${t.label}</h4><p class="text-[8px] font-black text-slate-400 uppercase tracking-widest">${t.cat}</p></div>${isComplete ? `<div class="text-emerald-500"><i class="fas fa-check-circle text-xl animate-bounce"></i></div>` : ''}</div>${dHtml}</div>`;
+                cont.appendChild(card);
+            });
+            ['Majo', 'Ivanna'].forEach(n => { const tab = document.getElementById(`tab-${n}`); if (tab) tab.className = currentUser === n ? 'flex-1 py-2 rounded-xl font-bold text-sm bg-white theme-text-color shadow-lg' : 'flex-1 py-2 rounded-xl font-bold text-sm text-white hover:bg-white/10'; });
+            
+            user._grandTotalEarned = grandTotalEarned;
+        }
+
+        window.showModal = (id) => { 
+            const container = document.getElementById('modal-container'); if (!container) return;
+            container.classList.replace('hidden', 'flex'); 
+            const modals = ['modal-goal', 'modal-bonus', 'modal-history', 'modal-edit-entry', 'modal-rules', 'modal-confirm-week', 'modal-confirm-delete', 'modal-withdraw'];
+            modals.forEach(m => { const el = document.getElementById(m); if (el) el.classList.add('hidden'); }); 
+            const target = document.getElementById(id); if (target) target.classList.remove('hidden'); 
+        };
+
+        window.closeModals = () => { const c = document.getElementById('modal-container'); if (c) c.classList.replace('flex', 'hidden'); };
+
+        window.openRulesModal = () => window.showModal('modal-rules');
+        window.openGoalModal = () => {
+            const u = state[currentUser];
+            document.getElementById('input-user-avatar').value = u.avatar || '';
+            document.getElementById('input-goal-name').value = u.goal.name || '';
+            document.getElementById('input-goal-target').value = u.goal.target || 500;
+            const weekStartEl = document.getElementById('input-week-start');
+            if(weekStartEl) weekStartEl.value = (state.globalSettings && state.globalSettings.weekStartUser) ? state.globalSettings.weekStartUser : 'Ivanna';
+            window.showModal('modal-goal');
+        };
+        window.saveGoal = () => {
+            state[currentUser].avatar = document.getElementById('input-user-avatar').value || '👧';
+            state[currentUser].goal = { name: document.getElementById('input-goal-name').value, target: parseFloat(document.getElementById('input-goal-target').value) || 500 };
+            state[currentUser].theme = tempTheme;
+            if(!state.globalSettings) state.globalSettings = {};
+            state.globalSettings.weekStartUser = document.getElementById('input-week-start').value;
+            sync(); window.closeModals();
+        };
+
+        window.openBonusModal = () => window.showModal('modal-bonus');
+        window.applyBonus = () => {
+            const v = parseFloat(document.getElementById('input-bonus').value);
+            if (!isNaN(v)) {
+                if (!state[currentUser].history) state[currentUser].history = [];
+                state[currentUser].history.unshift({ date: new Date().toLocaleDateString('es-MX',{month:'short',day:'numeric'}), cash: v, isBonus: true });
+                sync();
+            }
+            window.closeModals();
+        };
+
+        window.applyWithdraw = () => {
+            const v = parseFloat(document.getElementById('input-withdraw-amount').value);
+            const type = document.getElementById('input-withdraw-type').value;
+            if (!isNaN(v) && v > 0) {
+                if (!state[currentUser].history) state[currentUser].history = [];
+                state[currentUser].history.unshift({ date: new Date().toLocaleDateString('es-MX',{month:'short',day:'numeric'}), cash: v, isWithdraw: true, wType: type });
+                sync();
+                window.showHistory();
+            } else { window.closeModals(); }
+        };
+
+        window.confirmReset = () => {
+            const doneCount = tasksDef.filter(t => isTaskComplete(t.id, currentUser)).length;
+            const missed = tasksDef.length - doneCount;
+            const cash = Math.max(0, PAGA_BASE - (missed * (PAGA_BASE * PENALIDAD)));
+            const resEl = document.getElementById('finish-resumen-text');
+            if (resEl) resEl.innerText = `Lograste ${doneCount} de 8 tareas esta semana.`;
+            document.getElementById('finish-gasto').innerText = `$${(cash*0.5).toFixed(2)}`;
+            document.getElementById('finish-ahorro').innerText = `$${(cash*0.4).toFixed(2)}`;
+            document.getElementById('finish-causa').innerText = `$${(cash*0.1).toFixed(2)}`;
+            window.showModal('modal-confirm-week');
+        };
+
+        window.finishWeekConfirmed = () => {
+            const user = state[currentUser];
+            const doneCount = tasksDef.filter(t => isTaskComplete(t.id, currentUser)).length;
+            const missed = tasksDef.length - doneCount;
+            const cash = Math.max(0, PAGA_BASE - (missed * (PAGA_BASE * PENALIDAD)));
+            user.streak = (doneCount === tasksDef.length) ? (user.streak || 0) + 1 : 0;
+            if (!user.history) user.history = [];
+            user.history.unshift({ date: new Date().toLocaleDateString('es-MX',{month:'short',day:'numeric'}), cash, done: doneCount, total: tasksDef.length });
+            user.tasks = {}; confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+            sync(); window.closeModals();
+        };
+
+        window.showHistory = () => {
+            const user = state[currentUser];
+            const list = document.getElementById('history-list'); if (!list) return;
+            list.innerHTML = '';
+            let g=0, a=0, c=0;
+            (user.history || []).forEach(w => { 
+                if(w.isBonus) g+=w.cash; 
+                else if(w.isWithdraw) { if(w.wType==='gasto')g-=w.cash; else if(w.wType==='ahorro')a-=w.cash; else c-=w.cash; }
+                else { g+=w.cash*0.5; a+=w.cash*0.4; c+=w.cash*0.1; } 
+            });
+            document.getElementById('hist-total-amount').innerText = `$${(g+a+c).toFixed(2)}`;
+            document.getElementById('hist-grand-total').innerText = `$${(user._grandTotalEarned || 0).toFixed(2)}`;
+            document.getElementById('hist-total-gasto').innerText = `$${g.toFixed(2)}`;
+            document.getElementById('hist-total-ahorro').innerText = `$${a.toFixed(2)}`;
+            document.getElementById('hist-total-causa').innerText = `$${c.toFixed(2)}`;
+            
+            (user.history || []).forEach((w, i) => {
+                const div = document.createElement('div'); div.className = "p-4 bg-slate-50 rounded-3xl border border-slate-100 flex flex-col gap-3 shadow-xs";
+                const isW = w.isWithdraw; const isB = w.isBonus;
+                const gVal = isW ? (w.wType==='gasto'?-w.cash:0) : (isB?w.cash:w.cash*0.5);
+                const aVal = isW ? (w.wType==='ahorro'?-w.cash:0) : (isB?0:w.cash*0.4);
+                const cVal = isW ? (w.wType==='causa'?-w.cash:0) : (isB?0:w.cash*0.1);
+                div.innerHTML = `<div class="flex justify-between items-center"><div><p class="text-[9px] font-black text-slate-400 uppercase">${w.date}</p><p class="font-black ${isW?'text-red-500':'theme-text-color'} text-xl leading-none">${isW?'-':''}$${w.cash.toFixed(2)}</p></div><div class="flex items-center gap-2"><p class="text-[9px] font-black ${isW?'bg-red-50 text-red-400':(isB?'bg-emerald-50 text-emerald-400':'theme-bg-light theme-text-color')} px-2 py-1 rounded-lg uppercase tracking-tighter">${isW?'Retiro 🛍️':(isB?'Bono 🎁':'Semana')}</p><button onclick="window.editHist(${i})" class="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:theme-text-color shadow-xs transition-all"><i class="fas fa-pencil-alt text-[10px]"></i></button></div></div><div class="grid grid-cols-3 gap-1 pt-2 border-t border-black/5 text-[9px] font-black text-center uppercase tracking-tighter"><div class="text-pink-500">🛒 $${gVal.toFixed(2)}</div><div class="text-blue-500">🏦 $${aVal.toFixed(2)}</div><div class="text-green-500">❤️ $${cVal.toFixed(2)}</div></div>`;
+                list.appendChild(div);
+            });
+            window.showModal('modal-history'); setTimeout(() => initChart(user.history), 150);
+        };
+
+        window.editHist = (i) => { editingIdx = i; const inp = document.getElementById('input-edit-cash'); if (inp) inp.value = state[currentUser].history[i].cash; window.showModal('modal-edit-entry'); };
+        window.saveEditEntry = () => { const inp = document.getElementById('input-edit-cash'); if (inp) state[currentUser].history[editingIdx].cash = parseFloat(inp.value); sync(); window.showHistory(); };
+        window.openDeleteConfirmModal = () => window.showModal('modal-confirm-delete');
+        window.finishDeleteHistoryConfirmed = () => { state[currentUser].history.splice(editingIdx, 1); sync(); window.showHistory(); };
+        window.setTempTheme = (k) => { tempTheme = k; const btn = document.getElementById('btn-save-settings'); if (btn) btn.className = `flex-1 py-4 text-white rounded-2xl font-black ${themes[k].btn}`; };
+
+        function initChart(hist) {
+            const data = [...hist].filter(h => !h.isBonus && !h.isWithdraw).reverse();
+            if (chart) chart.destroy();
+            const canvas = document.getElementById('moneyChart');
+            if (canvas && data.length > 0) {
+                const ctx = canvas.getContext('2d'), primaryColor = themes[state[currentUser].theme || 'indigo'].hex, gradient = ctx.createLinearGradient(0, 0, 0, 200);
+                gradient.addColorStop(0, primaryColor + '66'); gradient.addColorStop(1, primaryColor + '00');
+                chart = new Chart(ctx, { type: 'line', data: { labels: data.map(d => d.date), datasets: [{ data: data.map(d => d.cash), borderColor: primaryColor, borderWidth: 4, pointBackgroundColor: '#fff', pointBorderColor: primaryColor, pointBorderWidth: 3, pointRadius: 6, tension: 0.4, fill: true, backgroundColor: gradient }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true }, x: { grid: { display: false } } } } });
+            }
+        }
+
+        async function initAuth() { try { await signInAnonymously(auth); } catch (e) {} }
+        initAuth();
+    </script>
+</body>
+</html>
